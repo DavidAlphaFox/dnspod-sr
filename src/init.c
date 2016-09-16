@@ -86,6 +86,7 @@ create_author(struct server *s, int n)
         dns_error(0, "out of memory in quizzer");
     memset(authors, 0, sizeof(struct author) * n);
     s->authors = authors;
+    // 每一个author都有一个监听端口
     for (i = 0; i < n; i++) {
         authors[i].idx = i;
         authors[i].cudp = s->ludp;
@@ -176,6 +177,7 @@ create_fetcher(struct server *s, int n)
         tmp->miss = 0;
         tmp->el = &s->eventlist;
         tmp->qidx = i % QUIZZER_NUM;
+        // 创建消息缓存
         tmp->mc = init_msgcache(100);
         if (tmp->mc == NULL)
             dns_error(0, "get msgcache");
@@ -186,6 +188,7 @@ create_fetcher(struct server *s, int n)
         tmp->loginfo->logfd = create_new_log(s->logpath, i, TYPE_FETCHER);
         if (tmp->loginfo->logfd < 0)
             dns_error(0, "log file error");
+        // 创建新的线程
         if (pthread_create(fpt + i, NULL, (void *) run_fetcher, tmp) != 0)
             dns_error(0, "init worker");
     }
@@ -195,6 +198,7 @@ create_fetcher(struct server *s, int n)
     {
         CPU_ZERO(&cpuinfo);
         CPU_SET_S(i + 1, sizeof(cpuinfo), &cpuinfo);
+        // 绑定CPU
         if(0 != pthread_setaffinity_np(fpt[i], sizeof(cpu_set_t), &cpuinfo))
         {
             printf("set affinity fetcher failed,  may be the cpu cores num less than (FETCHER_NUM + QUIZZER_NUM + 1)\n");
@@ -324,6 +328,7 @@ help(const char *progname)
 int init_globe()
 {
     int shmid;
+    // 使用共享内存
     shmid = shmget(SHM_KEY, sizeof(struct global_query_info), IPC_CREAT|0600|IPC_PRIVATE);
     if (shmid < 0) {
         printf("%lu\n", SHM_KEY + sizeof(struct global_query_info));
@@ -397,13 +402,17 @@ main(int argc, char **argv)
         }
     }
     sanity_test(0);
+    // 此处没完成降低权限的操作
     drop_privilege("./");
+    // deamon化
     daemonrize(daemon);
     trig_signals(1);
     global_now = time(NULL);    //for read root.z
     g_nameservers[0] = g_nameservers[1] = NULL;
     init_globe();
+    // 启动内存池
     init_mempool();
+    // 初始化服务器
     s = server_init();
     s->is_forward = is_forward;
     read_config(config, (char *)s->logpath, s->forward, g_nameservers);
@@ -420,9 +429,10 @@ main(int argc, char **argv)
             g_nameservers[1] = strdup("119.29.29.29");
         }
     }
-    //
+    //创建抓取器
     if (create_fetcher(s, s->nfetcher) < 0)
         dns_error(0, "create worker");
+    // 创建权威服务器的查询
     if (create_author(s, s->nquizzer) < 0)
         dns_error(0, "create author");
     if (pthread_create(&pt, NULL, (void *) time_cron, s) != 0)

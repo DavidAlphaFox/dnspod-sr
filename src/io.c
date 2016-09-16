@@ -66,6 +66,7 @@ jump_space(uchar * itor)
 //TXT,
 //AAAA,
 //SRV
+// 获取所有的权威DNS服务器
 int
 read_records_from_file(const char * fn, struct htable *ds,
                        struct rbtree *rbt, int hijack)

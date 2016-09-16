@@ -651,7 +651,7 @@ cb_read_auth(struct epoll_event *ev, struct sockinfo *si)
     si->mbuf = mbuf;
     return ret;
 }
-
+// 创建新的请求
 int
 launch_new_query(struct author *author/*, int idrowback*/)
 {
@@ -1113,7 +1113,7 @@ lock_and_add_to_quizz(mbuf_type *mbuf, struct fetcher *f)
     mbuf->qlen = mbuf->dlen;
     mbuf->cid = mbuf->id;
     init_qoutinfo(mbuf);
-
+    // 向qlist添加一个请求
     ret = htable_insert_list(f->s->qlist, mbuf->lowerdomain.domain, mbuf->dlen, mbuf->qtype, (uchar *)mbuf, 0, NULL, &(mbuf->lowerdomain.hash[0]));   //has same one, qeurying
     if (ret != HTABLE_INSERT_RET_NORMAL)
     {
@@ -1134,6 +1134,7 @@ find_record_from_mem(uchar * otd, int dlen, int type, struct htable *datasets,
     int ret, dataidx = 0, clen, debug = 100;
     hashval_t thash, *h = hash;
     dataidx++;                  //add 1 for type. value will be type.mvalue.rrset
+    // 如果类型不是CNAME的
     if (type != CNAME)
     {
         while ((ret =
@@ -1199,15 +1200,21 @@ run_fetcher(struct fetcher *f)
     
     while (1) {
         fd = -1;
+        // pthread的自旋锁
         pthread_spin_lock(&mc->lock);
+        // 没有任何消息
         if (mc->pkt == 0) {
             pthread_spin_unlock(&mc->lock);
             usleep(1000);
             continue;
         }
+        // 复制消息队列中的消息
         memcpy(&mbuf, mc->data + mc->head, sizeof(void *));
+        // 头部向前移动
         mc->head = mc->head + sizeof(void *);//sizeof(struct seninfo) + se->len;
+        // 如果head + 8 > 整个缓存大小的时候
         if (mc->head + 8 > mc->size)
+            // 头部设置为0
             mc->head = 0;
         mc->pkt--;
         pthread_spin_unlock(&mc->lock);
@@ -1223,10 +1230,12 @@ run_fetcher(struct fetcher *f)
         f->dataidx = 0;
         mbuf->td = mbuf->lowerdomain.domain;
         //dbg_print_td(td);
+
         ret =
             find_record_from_mem(mbuf->td, mbuf->dlen, mbuf->qtype, f->s->datasets,
                         f->tdbuffer, f->databuffer, &(mbuf->lowerdomain.hash[0]));
         if (ret > 0) {
+            // 内存直接命中
             write_back_to_client(mbuf, f->databuffer, ret);
             write_log(f->loginfo, f->idx, mbuf->td, mbuf->dlen - 1, mbuf->qtype,
                      mbuf->addr);
@@ -1237,12 +1246,15 @@ run_fetcher(struct fetcher *f)
                 fd = mbuf->fd;
                 mbuf->fd = -1;
             }
+            // 向相应的权威服务器发出请求
             if (lock_and_add_to_quizz(mbuf, f) < 0)
             {
                 f->miss++;
                 mbuf_free(mbuf);
             }
         }
+        // 如果没命中，直接杀掉tcp
+        // 很暴力的，让客户端重新来
         if (fd != -1) //not cached, kill tcp
             delete_close_event(fd, f);
     }

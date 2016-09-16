@@ -99,6 +99,7 @@ check_support_type(ushort type)
 void
 passer_dns_data(mbuf_type *mbuf)
 {
+    // 解析DNS内容
     uchar *buf = mbuf->buf;
     int num;
     int dlen = 0;

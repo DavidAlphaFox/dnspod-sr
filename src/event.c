@@ -205,10 +205,12 @@ cb_get_udp_msg(struct event_data *data, void *v, int idx)
         }
         memset(mbuf, 0, sizeof(mbuf_type));
         mc = f[idx].mc;
+        // 锁住相应msgcache
         pthread_spin_lock(&mc->lock);
         if ((mc->tail + 8 > mc->head && mc->tail < mc->head) || 
                 (mc->tail == mc->head && mc->pkt != 0)) {
             f[idx].miss++;
+            // msgcache没空间了
             pthread_spin_unlock(&mc->lock);
             mbuf_free(mbuf);
             return 0;
@@ -226,8 +228,12 @@ cb_get_udp_msg(struct event_data *data, void *v, int idx)
             return -1;
         }
         mbuf->fetch_len = ret;
+        // 只是复制mbuf的地址指针
         memcpy(mc->data + mc->tail, &mbuf, sizeof(void *));
+        // 移动尾部
         mc->tail = mc->tail + sizeof(void *);//ret + sizeof(struct seninfo);
+        // 如果tail＋8 > 整个缓存大小的时候
+        // 直接tail就归0
         if (mc->tail + 8 > mc->size)
             mc->tail = 0;
         mc->pkt++;

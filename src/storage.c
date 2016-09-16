@@ -43,10 +43,13 @@ init_msgcache(int n)
     int pgsz;
     if (n < 1 || n > 5000)      //page size == 4k. 5000*4k == 20m
         return NULL;
+    // 得到默认页大小
     pgsz = getpagesize();
+    // 分配结构体＋ 页面 * n的大小
     if ((mc = malloc(sizeof(struct msgcache) + pgsz * n)) == NULL)
         return NULL;
     mc->size = pgsz * n;
+    // 初始化自旋锁
     pthread_spin_init(&mc->lock, 0);
     mc->head = mc->tail = 0;
     mc->pkt = 0;
